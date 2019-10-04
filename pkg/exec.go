@@ -70,3 +70,44 @@ func Map(list interface{}, taskFunc interface{}, options *Options) <-chan *Retur
 	}
 	return out
 }
+
+func Pipe(in <-chan interface{}, taskFunc interface{}, options *Options) <-chan interface{} {
+	actualFunc := reflect.Indirect(reflect.ValueOf(taskFunc))
+	if actualFunc.Kind() != reflect.Func {
+		panic(errors.New("taskFunc must be a function"))
+	}
+
+	// channel for sending the results of completed functions
+	out := make(chan interface{})
+
+	var wg sync.WaitGroup
+
+	for elem := range in {
+		wg.Add(1)
+		go func(e interface{}) {
+			defer wg.Done()
+
+			result := actualFunc.Call([]reflect.Value{reflect.ValueOf(e)})
+
+			// wrap function results as `ReturnValue` type
+			var retVal interface{}
+			n := len(result)
+			if n == 1 {
+				retVal = result[0].Interface()
+			} else {
+				panic(errors.New("taskFunc returned more than one value!"))
+			}
+
+			out <- retVal
+
+		}(elem)
+
+	}
+
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+
+	return out
+}

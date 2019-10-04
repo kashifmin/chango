@@ -15,13 +15,31 @@ func Square(i int) int {
 	return s
 }
 
+func Cube(i int) int {
+	s := i * i * i
+	return s
+}
+
 func main() {
 
 	list := []int{1, 2, 3, 4, 5, 6}
-	res := pkg.Map(list, Square, &pkg.Options{Concurrency: 10})
+	res := pkg.Map(list, Square, &pkg.Options{Concurrency: 1})
 
 	for i := range res {
 		fmt.Println(i.Result.(int))
 	}
 
+	in := make(chan interface{}, 10)
+	for _, i := range list {
+		in <- i
+	}
+	close(in)
+	res2 := pkg.Pipe(
+		pkg.Pipe(in, Cube, &pkg.Options{Concurrency: 1}), 
+		Square, 
+		&pkg.Options{Concurrency: 1}
+	)
+	for i := range res2 {
+		fmt.Println(i.(int))
+	}
 }
