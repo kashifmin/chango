@@ -6,7 +6,7 @@ A go package for running tasks concurrently and control concurreny, task complet
 func main() {
 
 	list := []int{1, 2, 3, 4, 5, 6}
-	res := pkg.Map(list, Square, &pkg.Options{Concurrency: 10})
+	res := chango.Map(list, Square, &pkg.Options{Concurrency: 10})
 
 	for i := range res {
 		fmt.Println(i.Result.(int))
