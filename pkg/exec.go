@@ -17,7 +17,7 @@ type ReturnValue struct {
 }
 
 // Map executes `taskFunc` concurrently for each item in `list`
-func Map(list interface{}, taskFunc interface{}, options *Options) chan *ReturnValue {
+func Map(list interface{}, taskFunc interface{}, options *Options) <-chan *ReturnValue {
 	// check for correct types by reflection
 	actualFunc := reflect.Indirect(reflect.ValueOf(taskFunc))
 	actualList := reflect.ValueOf(list)
@@ -27,6 +27,9 @@ func Map(list interface{}, taskFunc interface{}, options *Options) chan *ReturnV
 	if actualList.Kind() != reflect.Slice && actualList.Kind() != reflect.Array {
 		fmt.Println(actualList.Kind())
 		panic(errors.New("List Must be an array or slice"))
+	}
+	if options.Concurrency < 1 {
+		panic(errors.New("Concurrency is less than 1! You do not want to be deadlocked."))
 	}
 
 	// channel for sending the results of completed functions
@@ -42,11 +45,14 @@ func Map(list interface{}, taskFunc interface{}, options *Options) chan *ReturnV
 		close(out)
 	}()
 
+	sem := make(chan int, options.Concurrency)
+
 	// execute `taskFunc` for each item in the list
 	for i := 0; i < nTasks; i++ {
 		elem := actualList.Index(i)
 		go func(elem reflect.Value) {
 			defer wg.Done()
+			sem <- 1
 			result := actualFunc.Call([]reflect.Value{elem})
 
 			// wrap function results as `ReturnValue` type
@@ -59,6 +65,7 @@ func Map(list interface{}, taskFunc interface{}, options *Options) chan *ReturnV
 				retVal.Error = result[1].Interface().(error)
 			}
 			out <- retVal
+			<-sem
 		}(elem)
 	}
 	return out
