@@ -16,6 +16,8 @@ type ReturnValue struct {
 	Result interface{}
 }
 
+type ResultChan chan interface{}
+
 // Map executes `taskFunc` concurrently for each item in `list`
 func Map(list interface{}, taskFunc interface{}, options *Options) <-chan *ReturnValue {
 	// check for correct types by reflection
@@ -71,6 +73,8 @@ func Map(list interface{}, taskFunc interface{}, options *Options) <-chan *Retur
 	return out
 }
 
+// Pipe reads from channel `in` and applies `taskFunc` on it
+// results are sent out using the channel returned
 func Pipe(in <-chan interface{}, taskFunc interface{}, options *Options) <-chan interface{} {
 	actualFunc := reflect.Indirect(reflect.ValueOf(taskFunc))
 	if actualFunc.Kind() != reflect.Func {
@@ -110,4 +114,19 @@ func Pipe(in <-chan interface{}, taskFunc interface{}, options *Options) <-chan 
 	}()
 
 	return out
+}
+
+func Concurrent(options Options, taskFunc ...func(ResultChan)) {
+	n := len(taskFunc)
+
+	doneChan := make(ResultChan, n)
+
+	for _, task := range taskFunc {
+		go task(doneChan)
+	}
+
+	for i := 0; i < n; i++ {
+		<-doneChan
+	}
+	return
 }
